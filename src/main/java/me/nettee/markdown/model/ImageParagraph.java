@@ -1,17 +1,26 @@
 package me.nettee.markdown.model;
 
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+
 /**
  * 图片段落
  */
-public class ImageParagraph extends Paragraph {
+@Getter
+@EqualsAndHashCode(callSuper = false)
+public class ImageParagraph extends SingleLineParagraph {
 
     /**
-     * 图片说明
+     * 图片
      */
-    private String caption;
+    private final Image image;
 
-    /**
-     * 图片 URI
-     */
-    private String uri;
+    public ImageParagraph(Image image) {
+        this.image = image;
+    }
+
+    @Override
+    public String toString() {
+        return image.toString();
+    }
 }

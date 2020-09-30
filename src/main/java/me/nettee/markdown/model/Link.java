@@ -1,8 +1,32 @@
 package me.nettee.markdown.model;
 
-public class Link {
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
-    private String text;
+/**
+ * 链接
+ */
+@Getter
+@EqualsAndHashCode(callSuper = false)
+public class Link extends InlineElement {
 
-    private String uri;
+    /**
+     * 链接文本
+     */
+    private final String text;
+
+    /**
+     * 链接 URI
+     */
+    private final String uri;
+
+    public Link(String text, String uri) {
+        this.text = text;
+        this.uri = uri;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("[%s](%s)", text, uri);
+    }
 }

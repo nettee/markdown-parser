@@ -1,13 +1,19 @@
 package me.nettee.markdown.model;
 
+import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
+@Data
 public class Line {
 
     /**
      * 文本
      */
-    private String text;
+    private final String text;
+
+    public Line(String text) {
+        this.text = text;
+    }
 
     public boolean isEmpty() {
         return StringUtils.isEmpty(text);
@@ -31,5 +37,9 @@ public class Line {
 
     public boolean isCodeBlockBorder() {
         return StringUtils.startsWith(text, "```");
+    }
+
+    public boolean isImage() {
+        return StringUtils.startsWith(text, "!");
     }
 }

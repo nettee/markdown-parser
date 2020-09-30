@@ -5,23 +5,21 @@ import lombok.Getter;
 
 import java.util.List;
 
-/**
- * 引用
- */
 @Getter
 @EqualsAndHashCode(callSuper = false)
-public class Quote extends Paragraph {
-
-    public static final String PREFIX = ">";
+public class NormalParagraph extends Paragraph {
 
     /**
-     * 引用中的段落
+     * 段落行
      */
-    private List<String> paragraphs;
+    private final List<String> lines;
+
+    public NormalParagraph(List<String> lines) {
+        this.lines = lines;
+    }
 
     @Override
     public List<String> lineStrings() {
-        // TODO
-        throw new UnsupportedOperationException();
+        return lines;
     }
 }
