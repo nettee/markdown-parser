@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.stream.Collectors.toList;
@@ -29,19 +28,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
         this.pos = 0;
     }
 
-    private String[] lines;
+    private final String[] lines;
     private int pos;
 
     public static SimpleMarkdownParser fromString(String content) {
         return new SimpleMarkdownParser(content.split("\n"));
     }
 
-    private static SimpleMarkdownParser fromLines(List<String> lines) {
-        return new SimpleMarkdownParser(lines.toArray(new String[0]));
-    }
-
     public MarkdownDocument parse() {
-        List<Paragraph> paragraphs = parsePargraphs();
+        List<Paragraph> paragraphs = parseParagraphs();
         if (paragraphs.size() > 0 && paragraphs.get(0) instanceof Heading) {
             Heading heading = (Heading) paragraphs.get(0);
             checkState(heading.getLevel() == 1);
@@ -52,7 +47,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         }
     }
 
-    private List<Paragraph> parsePargraphs() {
+    private List<Paragraph> parseParagraphs() {
         List<Paragraph> paragraphs = new ArrayList<>();
         while (isNotEof()) {
             Line line = nextLine();
@@ -128,7 +123,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         SimpleMarkdownParser subParser = new SimpleMarkdownParser(lines.stream()
                 .map(Line::getText)
                 .toArray(String[]::new));
-        List<Paragraph> paragraphs = subParser.parsePargraphs();
+        List<Paragraph> paragraphs = subParser.parseParagraphs();
         return new Quote(paragraphs);
     }
 
