@@ -1,6 +1,5 @@
 package me.nettee.markdown.parser;
 
-import com.google.common.base.Preconditions;
 import me.nettee.markdown.model.CodeBlock;
 import me.nettee.markdown.model.Heading;
 import me.nettee.markdown.model.HorizontalRule;
@@ -24,9 +23,6 @@ import static com.google.common.base.Preconditions.checkState;
 
 public class SimpleMarkdownParser implements MarkdownParser {
 
-    private SimpleMarkdownParser() {
-    }
-
     private SimpleMarkdownParser(String[] lines) {
         this.lines = lines;
         this.pos = 0;
@@ -40,7 +36,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     public MarkdownDocument parse() {
-        throw new UnsupportedOperationException();
+        List<Paragraph> paragraphs = parsePargraphs();
+        if (paragraphs.size() > 0 && paragraphs.get(0) instanceof Heading) {
+            Heading heading = (Heading) paragraphs.get(0);
+            checkState(heading.getLevel() == 1);
+            String title = heading.getText();
+            return new MarkdownDocument(title, paragraphs.subList(1, paragraphs.size()));
+        } else {
+            return new MarkdownDocument(paragraphs);
+        }
     }
 
     private List<Paragraph> parsePargraphs() {
@@ -127,8 +131,11 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     private static String parseCodeLanguageFromLine(String line) {
-        // TODO
-        throw new UnsupportedOperationException();
+        Pattern pattern = Pattern.compile("```(\\S*)");
+        Matcher matcher = pattern.matcher(line);
+        boolean found = matcher.find();
+        checkState(found);
+        return matcher.group(1);
     }
 
     MathBlock parseMathBlock() {

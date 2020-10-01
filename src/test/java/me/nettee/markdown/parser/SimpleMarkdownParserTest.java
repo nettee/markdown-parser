@@ -6,9 +6,13 @@ import me.nettee.markdown.model.HorizontalRule;
 import me.nettee.markdown.model.Image;
 import me.nettee.markdown.model.ImageParagraph;
 import me.nettee.markdown.model.MarkdownDocument;
+import me.nettee.markdown.model.MathBlock;
+import me.nettee.markdown.model.NormalParagraph;
 import me.nettee.markdown.model.Paragraph;
 import org.junit.Test;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.function.Function;
 
@@ -20,6 +24,10 @@ public class SimpleMarkdownParserTest {
     public void constructParser() {
         SimpleMarkdownParser parser = SimpleMarkdownParser.fromString("");
         MarkdownDocument document = parser.parse();
+    }
+
+    @Test
+    public void parseDocument() {
     }
 
     private void testParseParagraph(Paragraph paragraph, Function<SimpleMarkdownParser, Paragraph> f) {
@@ -57,5 +65,16 @@ public class SimpleMarkdownParserTest {
         testParseParagraph(codeBlock, SimpleMarkdownParser::parseCodeBlock);
     }
 
+    @Test
+    public void parseMathBlock() {
+        MathBlock mathBlock = new MathBlock(Arrays.asList("line1", "line2"));
+        testParseParagraph(mathBlock, SimpleMarkdownParser::parseMathBlock);
+    }
+
+    @Test
+    public void parseNormalParagraph() {
+        NormalParagraph normalParagraph = new NormalParagraph(Arrays.asList("line1", "line2"));
+        testParseParagraph(normalParagraph, SimpleMarkdownParser::parseNormalParagraph);
+    }
 
 }
