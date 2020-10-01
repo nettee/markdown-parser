@@ -1,5 +1,6 @@
 package me.nettee.markdown.parser;
 
+import com.google.common.io.Resources;
 import me.nettee.markdown.model.CodeBlock;
 import me.nettee.markdown.model.Heading;
 import me.nettee.markdown.model.HorizontalRule;
@@ -11,8 +12,9 @@ import me.nettee.markdown.model.NormalParagraph;
 import me.nettee.markdown.model.Paragraph;
 import org.junit.Test;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.function.Function;
 
@@ -20,14 +22,20 @@ import static org.junit.Assert.assertEquals;
 
 public class SimpleMarkdownParserTest {
 
-    @Test(expected = UnsupportedOperationException.class)
+    @Test
     public void constructParser() {
         SimpleMarkdownParser parser = SimpleMarkdownParser.fromString("");
         MarkdownDocument document = parser.parse();
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     @Test
-    public void parseDocument() {
+    public void parseDocument() throws IOException {
+        URL url = Resources.getResource("markdown/markdown-sample.md");
+        String content = Resources.toString(url, StandardCharsets.UTF_8);
+        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString(content);
+        MarkdownDocument document = parser.parse();
+        System.out.println(document.toDebugString());
     }
 
     private void testParseParagraph(Paragraph paragraph, Function<SimpleMarkdownParser, Paragraph> f) {

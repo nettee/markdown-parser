@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.stream.Collectors.toList;
 
 public class SimpleMarkdownParser implements MarkdownParser {
 
@@ -33,6 +34,10 @@ public class SimpleMarkdownParser implements MarkdownParser {
 
     public static SimpleMarkdownParser fromString(String content) {
         return new SimpleMarkdownParser(content.split("\n"));
+    }
+
+    private static SimpleMarkdownParser fromLines(List<String> lines) {
+        return new SimpleMarkdownParser(lines.toArray(new String[0]));
     }
 
     public MarkdownDocument parse() {
@@ -118,8 +123,13 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     Quote parseQuote() {
-        // TODO
-        throw new UnsupportedOperationException();
+        List<Line> lines = consumeWhile(Line::isQuoted);
+        lines.forEach(Line::unindentQuote);
+        SimpleMarkdownParser subParser = new SimpleMarkdownParser(lines.stream()
+                .map(Line::getText)
+                .toArray(String[]::new));
+        List<Paragraph> paragraphs = subParser.parsePargraphs();
+        return new Quote(paragraphs);
     }
 
     CodeBlock parseCodeBlock() {
@@ -139,9 +149,12 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     MathBlock parseMathBlock() {
+        checkState(nextLine().isMathBlockBorder());
         consumeLine();
-        List<Line> lines = consumeWhile(line -> !line.isMathBlockBorder());
-        consumeLine();
+        List<Line> lines = consumeWhile(line -> !line.isEmpty() && !line.isMathBlockBorder());
+        if (nextLine().isMathBlockBorder()) {
+            consumeLine();
+        }
         return new MathBlock(lines2texts(lines));
     }
 
@@ -153,7 +166,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
     private List<String> lines2texts(List<Line> lines) {
         return lines.stream()
                 .map(Line::getText)
-                .collect(Collectors.toList());
+                .collect(toList());
     }
 
     private List<Line> consumeWhile(Predicate<Line> predicate) {

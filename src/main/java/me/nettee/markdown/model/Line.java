@@ -9,7 +9,7 @@ public class Line {
     /**
      * 文本
      */
-    private final String text;
+    private String text;
 
     public Line(String text) {
         this.text = text;
@@ -41,5 +41,16 @@ public class Line {
 
     public boolean isImage() {
         return StringUtils.startsWith(text, "!");
+    }
+
+    public void unindentQuote() {
+        if (StringUtils.isEmpty(text)) {
+            return;
+        }
+        if (text.startsWith("> ")) {
+            text = text.substring(2);
+        } else if (text.startsWith(">")) {
+            text = text.substring(1);
+        }
     }
 }
