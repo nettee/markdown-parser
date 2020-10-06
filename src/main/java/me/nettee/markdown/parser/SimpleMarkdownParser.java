@@ -26,13 +26,22 @@ import static java.util.stream.Collectors.toList;
 
 public class SimpleMarkdownParser implements MarkdownParser {
 
+    private final Line[] lines;
+    private int pos;
+
     private SimpleMarkdownParser(String[] lines) {
-        this.lines = lines;
+        int n = lines.length;
+        this.lines = new Line[n];
+        for (int i = 0; i < n; i++) {
+            this.lines[i] = new Line(lines[i]);
+        }
         this.pos = 0;
     }
 
-    private final String[] lines;
-    private int pos;
+    private SimpleMarkdownParser(Line[] lines) {
+        this.lines = lines;
+        this.pos = 0;
+    }
 
     public static SimpleMarkdownParser fromString(String content) {
         return new SimpleMarkdownParser(content.split("\n"));
@@ -87,12 +96,12 @@ public class SimpleMarkdownParser implements MarkdownParser {
     Heading parseHeading() {
         checkState(nextLine().isHeading());
         Line line = consumeLine();
-        return parseHeadingFromLine(line.getText());
+        return parseHeadingFromLine(line);
     }
 
-    private static Heading parseHeadingFromLine(String line) {
+    private static Heading parseHeadingFromLine(Line line) {
         Pattern pattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
-        Matcher matcher = pattern.matcher(line);
+        Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
         checkState(found);
         int level = matcher.group(1).length();
@@ -109,16 +118,14 @@ public class SimpleMarkdownParser implements MarkdownParser {
     Quote parseQuote() {
         List<Line> lines = consumeWhile(Line::isQuoted);
         lines.forEach(Line::unindentQuote);
-        SimpleMarkdownParser subParser = new SimpleMarkdownParser(lines.stream()
-                .map(Line::getText)
-                .toArray(String[]::new));
+        SimpleMarkdownParser subParser = new SimpleMarkdownParser(lines.toArray(new Line[0]));
         List<Paragraph> paragraphs = subParser.parseParagraphs();
         return new Quote(paragraphs);
     }
 
     CodeBlock parseCodeBlock() {
         Line startLine = consumeLine();
-        String language = parseCodeLanguageFromLine(startLine.getText());
+        String language = parseCodeLanguageFromLine(startLine);
         List<Line> lines = consumeParagraphUntil(Line::isCodeBlockBorder);
         if (nextLine().isCodeBlockBorder()) {
             consumeLine();
@@ -126,9 +133,9 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new CodeBlock(language, lines2texts(lines));
     }
 
-    private static String parseCodeLanguageFromLine(String line) {
+    private static String parseCodeLanguageFromLine(Line line) {
         Pattern pattern = Pattern.compile("```(\\S*)");
-        Matcher matcher = pattern.matcher(line);
+        Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
         checkState(found);
         return matcher.group(1);
@@ -149,7 +156,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         List<Line> lines = consumeUntil(Line::isEmpty);
         // 首先尝试 parse 成图片
         if (lines.size() == 1) {
-            Optional<Image> image = tryParseImageFromLine(lines.get(0).getText());
+            Optional<Image> image = tryParseImageFromLine(lines.get(0));
             if (image.isPresent()) {
                 return FallBack.primary(new ImageParagraph(image.get()));
             }
@@ -160,14 +167,14 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     ImageParagraph parseImageParagraph() {
-        Optional<Image> image = tryParseImageFromLine(nextLine().getText());
+        Optional<Image> image = tryParseImageFromLine(nextLine());
         checkState(image.isPresent());
         return new ImageParagraph(image.get());
     }
 
-    private static Optional<Image> tryParseImageFromLine(String line) {
+    private static Optional<Image> tryParseImageFromLine(Line line) {
         Pattern pattern = Pattern.compile("^!\\[(.*?)]\\((.+?)\\)$");
-        Matcher matcher = pattern.matcher(line);
+        Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
         if (!found) {
             return Optional.empty();
@@ -231,13 +238,13 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     private Line consumeLine() {
-        Line line = new Line(lines[pos]);
+        Line line = lines[pos];
         pos++;
         return line;
     }
 
     private Line nextLine() {
-        return new Line(lines[pos]);
+        return lines[pos];
     }
 
     private boolean isNotEof() {

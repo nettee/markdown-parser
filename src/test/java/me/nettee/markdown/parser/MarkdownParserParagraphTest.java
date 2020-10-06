@@ -9,7 +9,6 @@ import me.nettee.markdown.dom.MarkdownDocument;
 import me.nettee.markdown.dom.MathBlock;
 import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Arrays;
