@@ -9,6 +9,7 @@ import me.nettee.markdown.dom.MarkdownDocument;
 import me.nettee.markdown.dom.MathBlock;
 import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
+import me.nettee.markdown.exception.MarkdownParseError;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -30,9 +31,20 @@ public class MarkdownParserParagraphTest {
         assertEquals(paragraph, f.apply(parser));
     }
 
+    private void testParseParagraph(String paragraphString, Function<SimpleMarkdownParser, Paragraph> f) {
+        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString(paragraphString);
+        assertEquals(paragraphString, f.apply(parser).toString());
+    }
+
     @Test
     public void parseHeading() {
         Heading heading = new Heading(3, "this is a heading");
+        testParseParagraph(heading, SimpleMarkdownParser::parseHeading);
+    }
+
+    @Test(expected = MarkdownParseError.class)
+    public void parseHeading_notAHeading_error() {
+        String heading = "This is not a heading";
         testParseParagraph(heading, SimpleMarkdownParser::parseHeading);
     }
 

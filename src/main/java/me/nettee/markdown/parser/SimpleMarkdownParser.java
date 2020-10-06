@@ -12,6 +12,7 @@ import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
 import me.nettee.markdown.dom.Quote;
 import me.nettee.markdown.dom.Table;
+import me.nettee.markdown.exception.MarkdownParseError;
 import me.nettee.markdown.model.FallBack;
 
 import java.util.ArrayList;
@@ -93,9 +94,16 @@ public class SimpleMarkdownParser implements MarkdownParser {
         }
     }
 
+    private static void checkParserState(boolean expression, MarkdownParseError error) {
+        if (!expression) {
+            throw error;
+        }
+    }
+
     Heading parseHeading() {
-        checkState(nextLine().isHeading());
-        Line line = consumeLine();
+        Line line = nextLine();
+        checkParserState(line.isHeading(), new MarkdownParseError(line, Heading.class));
+        consumeLine();
         return parseHeadingFromLine(line);
     }
 
@@ -103,14 +111,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
         Pattern pattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
         Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
-        checkState(found);
+        checkParserState(found, new MarkdownParseError(line, Heading.class));
         int level = matcher.group(1).length();
         String text = matcher.group(2);
         return new Heading(level, text);
     }
 
     HorizontalRule parseHorizontalRule() {
-        checkState(nextLine().isHorizontalRule());
+        Line line = nextLine();
+        checkParserState(line.isHorizontalRule(), new MarkdownParseError(line, HorizontalRule.class));
         consumeLine();
         return new HorizontalRule();
     }
@@ -137,12 +146,13 @@ public class SimpleMarkdownParser implements MarkdownParser {
         Pattern pattern = Pattern.compile("```(\\S*)");
         Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
-        checkState(found);
+        checkParserState(found, new MarkdownParseError(line, CodeBlock.class));
         return matcher.group(1);
     }
 
     MathBlock parseMathBlock() {
-        checkState(nextLine().isMathBlockBorder());
+        Line line = nextLine();
+        checkParserState(line.isMathBlockBorder(), new MarkdownParseError(line, MathBlock.class));
         consumeLine();
         List<Line> lines = consumeParagraphUntil(Line::isMathBlockBorder);
         if (nextLine().isMathBlockBorder()) {
@@ -152,7 +162,6 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     private FallBack<Paragraph, ImageParagraph, NormalParagraph> tryParseImageParagraph() {
-        checkState(nextLine().seemsLikeImage());
         List<Line> lines = consumeUntil(Line::isEmpty);
         // 首先尝试 parse 成图片
         if (lines.size() == 1) {
@@ -167,8 +176,9 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     ImageParagraph parseImageParagraph() {
-        Optional<Image> image = tryParseImageFromLine(nextLine());
-        checkState(image.isPresent());
+        Line line = nextLine();
+        Optional<Image> image = tryParseImageFromLine(line);
+        checkParserState(image.isPresent(), new MarkdownParseError(line, ImageParagraph.class));
         return new ImageParagraph(image.get());
     }
 
