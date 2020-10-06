@@ -1,4 +1,4 @@
-package me.nettee.markdown.model;
+package me.nettee.markdown.dom;
 
 import com.google.common.base.Strings;
 import lombok.EqualsAndHashCode;

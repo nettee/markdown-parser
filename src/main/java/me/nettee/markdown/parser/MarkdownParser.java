@@ -1,8 +1,8 @@
 package me.nettee.markdown.parser;
 
-import me.nettee.markdown.model.MarkdownDocument;
+import me.nettee.markdown.dom.MarkdownDocument;
 
 public interface MarkdownParser {
 
-    MarkdownDocument parse();
+    MarkdownDocument parseDocument();
 }

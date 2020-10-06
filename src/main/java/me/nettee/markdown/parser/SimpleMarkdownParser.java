@@ -1,19 +1,22 @@
 package me.nettee.markdown.parser;
 
-import me.nettee.markdown.model.CodeBlock;
-import me.nettee.markdown.model.Heading;
-import me.nettee.markdown.model.HorizontalRule;
-import me.nettee.markdown.model.Image;
-import me.nettee.markdown.model.ImageParagraph;
-import me.nettee.markdown.model.Line;
-import me.nettee.markdown.model.MarkdownDocument;
-import me.nettee.markdown.model.MathBlock;
-import me.nettee.markdown.model.NormalParagraph;
-import me.nettee.markdown.model.Paragraph;
-import me.nettee.markdown.model.Quote;
+import me.nettee.markdown.dom.CodeBlock;
+import me.nettee.markdown.dom.Heading;
+import me.nettee.markdown.dom.HorizontalRule;
+import me.nettee.markdown.dom.Image;
+import me.nettee.markdown.dom.ImageParagraph;
+import me.nettee.markdown.dom.Line;
+import me.nettee.markdown.dom.MarkdownDocument;
+import me.nettee.markdown.dom.MathBlock;
+import me.nettee.markdown.dom.NormalParagraph;
+import me.nettee.markdown.dom.Paragraph;
+import me.nettee.markdown.dom.Quote;
+import me.nettee.markdown.dom.Table;
+import me.nettee.markdown.model.FallBack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,7 +38,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new SimpleMarkdownParser(content.split("\n"));
     }
 
-    public MarkdownDocument parse() {
+    public MarkdownDocument parseDocument() {
         List<Paragraph> paragraphs = parseParagraphs();
         if (paragraphs.size() > 0 && paragraphs.get(0) instanceof Heading) {
             Heading heading = (Heading) paragraphs.get(0);
@@ -66,14 +69,16 @@ public class SimpleMarkdownParser implements MarkdownParser {
             return parseHeading();
         } else if (line.isHorizontalRule()) {
             return parseHorizontalRule();
-        } else if (line.isImage()) {
-            return parseImageParagraph();
         } else if (line.isQuoted()) {
             return parseQuote();
         } else if (line.isCodeBlockBorder()) {
             return parseCodeBlock();
         } else if (line.isMathBlockBorder()) {
             return parseMathBlock();
+        } else if (line.seemsLikeImage()) {
+            return tryParseImageParagraph().nullSafeGet();
+        } else if (line.seemsLikeTableBorder()) {
+            return tryParseTable().nullSafeGet();
         } else {
             return parseNormalParagraph();
         }
@@ -101,22 +106,6 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new HorizontalRule();
     }
 
-    ImageParagraph parseImageParagraph() {
-        checkState(nextLine().isImage());
-        Line line = consumeLine();
-        return parseImageFromLine(line.getText());
-    }
-
-    private static ImageParagraph parseImageFromLine(String line) {
-        Pattern pattern = Pattern.compile("^!\\[(.*?)]\\((.+?)\\)$");
-        Matcher matcher = pattern.matcher(line);
-        boolean found = matcher.find();
-        checkState(found);
-        String caption = matcher.group(1);
-        String uri = matcher.group(2);
-        return new ImageParagraph(new Image(caption, uri));
-    }
-
     Quote parseQuote() {
         List<Line> lines = consumeWhile(Line::isQuoted);
         lines.forEach(Line::unindentQuote);
@@ -130,8 +119,10 @@ public class SimpleMarkdownParser implements MarkdownParser {
     CodeBlock parseCodeBlock() {
         Line startLine = consumeLine();
         String language = parseCodeLanguageFromLine(startLine.getText());
-        List<Line> lines = consumeWhile(line -> !line.isCodeBlockBorder());
-        consumeLine();
+        List<Line> lines = consumeParagraphUntil(Line::isCodeBlockBorder);
+        if (nextLine().isCodeBlockBorder()) {
+            consumeLine();
+        }
         return new CodeBlock(language, lines2texts(lines));
     }
 
@@ -146,22 +137,89 @@ public class SimpleMarkdownParser implements MarkdownParser {
     MathBlock parseMathBlock() {
         checkState(nextLine().isMathBlockBorder());
         consumeLine();
-        List<Line> lines = consumeWhile(line -> !line.isEmpty() && !line.isMathBlockBorder());
+        List<Line> lines = consumeParagraphUntil(Line::isMathBlockBorder);
         if (nextLine().isMathBlockBorder()) {
             consumeLine();
         }
         return new MathBlock(lines2texts(lines));
     }
 
+    private FallBack<Paragraph, ImageParagraph, NormalParagraph> tryParseImageParagraph() {
+        checkState(nextLine().seemsLikeImage());
+        List<Line> lines = consumeUntil(Line::isEmpty);
+        // 首先尝试 parse 成图片
+        if (lines.size() == 1) {
+            Optional<Image> image = tryParseImageFromLine(lines.get(0).getText());
+            if (image.isPresent()) {
+                return FallBack.primary(new ImageParagraph(image.get()));
+            }
+        }
+        // 如果 parse 失败则作为普通段落处理
+        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
+        return FallBack.secondary(normalParagraph);
+    }
+
+    ImageParagraph parseImageParagraph() {
+        Optional<Image> image = tryParseImageFromLine(nextLine().getText());
+        checkState(image.isPresent());
+        return new ImageParagraph(image.get());
+    }
+
+    private static Optional<Image> tryParseImageFromLine(String line) {
+        Pattern pattern = Pattern.compile("^!\\[(.*?)]\\((.+?)\\)$");
+        Matcher matcher = pattern.matcher(line);
+        boolean found = matcher.find();
+        if (!found) {
+            return Optional.empty();
+        }
+        String caption = matcher.group(1);
+        String uri = matcher.group(2);
+        return Optional.of(new Image(caption, uri));
+    }
+
+    private FallBack<Paragraph, Table, NormalParagraph> tryParseTable() {
+        checkState(nextLine().seemsLikeTableBorder());
+        List<Line> lines = consumeUntil(Line::isEmpty);
+        // 首先尝试 parse 成表格
+        Optional<Table> table = tryParseTableFromLines(lines);
+        if (table.isPresent()) {
+            return FallBack.primary(table.get());
+        }
+        // 如果 parse 失败则作为普通段落处理
+        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
+        return FallBack.secondary(normalParagraph);
+    }
+
+    private static Optional<Table> tryParseTableFromLines(List<Line> lines) {
+        // TODO;
+        return Optional.empty();
+    }
+
     NormalParagraph parseNormalParagraph() {
-        List<Line> lines = consumeWhile(line -> !line.isEmpty());
+        List<Line> lines = consumeUntil(Line::isEmpty);
+        return parseNormalParagraphFromLines(lines);
+    }
+
+    private static NormalParagraph parseNormalParagraphFromLines(List<Line> lines) {
         return new NormalParagraph(lines2texts(lines));
     }
 
-    private List<String> lines2texts(List<Line> lines) {
+    private static List<String> lines2texts(List<Line> lines) {
         return lines.stream()
                 .map(Line::getText)
                 .collect(toList());
+    }
+
+    private List<Line> consumeParagraphUntil(Predicate<Line> predicate) {
+        return consumeUntil(predicate.or(Line::isEmpty));
+    }
+
+    private List<Line> consumeParagraphWhile(Predicate<Line> predicate) {
+        return consumeWhile(predicate.and(Line::isNotEmpty));
+    }
+
+    private List<Line> consumeUntil(Predicate<Line> predicate) {
+        return consumeWhile(predicate.negate());
     }
 
     private List<Line> consumeWhile(Predicate<Line> predicate) {
