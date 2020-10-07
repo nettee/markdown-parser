@@ -1,5 +1,6 @@
 package me.nettee.markdown.parser;
 
+import me.nettee.markdown.common.ParserUtils;
 import me.nettee.markdown.dom.CodeBlock;
 import me.nettee.markdown.dom.Heading;
 import me.nettee.markdown.dom.HorizontalRule;
@@ -13,6 +14,7 @@ import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
 import me.nettee.markdown.dom.Quote;
 import me.nettee.markdown.dom.Table;
+import me.nettee.markdown.exception.InputDrainedError;
 import me.nettee.markdown.exception.MarkdownParseError;
 import me.nettee.markdown.model.FallBack;
 
@@ -21,9 +23,10 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
-import static java.util.stream.Collectors.toList;
+import static me.nettee.markdown.common.ParserUtils.checkParserState;
 
 public class SimpleMarkdownParser implements MarkdownParser {
 
@@ -75,20 +78,17 @@ public class SimpleMarkdownParser implements MarkdownParser {
         }
     }
 
-    private List<Paragraph> parseParagraphs() {
+    public List<Paragraph> parseParagraphs() {
         List<Paragraph> paragraphs = new ArrayList<>();
         while (isNotEof()) {
-            Line line = nextLine();
-            if (line.isEmpty()) {
-                consumeLine();
-            } else {
-                paragraphs.add(parseParagraph());
-            }
+            paragraphs.add(parseParagraph());
         }
         return paragraphs;
     }
 
-    private Paragraph parseParagraph() {
+    public Paragraph parseParagraph() {
+        consumeWhile(Line::isEmpty);
+        checkParserState(isNotEof(), new InputDrainedError());
         Line line = nextLine();
         if (line.isHeading()) {
             return parseHeading();
@@ -109,13 +109,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         }
     }
 
-    private static void checkParserState(boolean expression, MarkdownParseError error) {
-        if (!expression) {
-            throw error;
-        }
-    }
-
-    Heading parseHeading() {
+    public Heading parseHeading() {
         Line line = nextLine();
         checkParserState(line.isHeading(), new MarkdownParseError(line, Heading.class));
         consumeLine();
@@ -132,14 +126,14 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new Heading(level, text);
     }
 
-    HorizontalRule parseHorizontalRule() {
+    public HorizontalRule parseHorizontalRule() {
         Line line = nextLine();
         checkParserState(line.isHorizontalRule(), new MarkdownParseError(line, HorizontalRule.class));
         consumeLine();
         return new HorizontalRule();
     }
 
-    Quote parseQuote() {
+    public Quote parseQuote() {
         List<Line> lines = consumeWhile(Line::isQuoted);
         lines.forEach(Line::unindentQuote);
         SimpleMarkdownParser subParser = new SimpleMarkdownParser(lines.toArray(new Line[0]));
@@ -147,7 +141,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new Quote(paragraphs);
     }
 
-    CodeBlock parseCodeBlock() {
+    public CodeBlock parseCodeBlock() {
         Line startLine = consumeLine();
         String language = parseCodeLanguageFromLine(startLine);
         List<Line> lines = consumeParagraphUntil(Line::isCodeBlockBorder);
@@ -165,7 +159,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return matcher.group(1);
     }
 
-    MathBlock parseMathBlock() {
+    public MathBlock parseMathBlock() {
         Line line = nextLine();
         checkParserState(line.isMathBlockBorder(), new MarkdownParseError(line, MathBlock.class));
         consumeLine();
@@ -192,7 +186,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return FallBack.secondary(normalParagraph);
     }
 
-    ImageParagraph parseImageParagraph() {
+    public ImageParagraph parseImageParagraph() {
         Line line = nextLine();
         try {
             Image image = tryParseImageFromLine(line);
@@ -234,7 +228,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
         throw new ParseElementFailException(lines.get(0), Table.class);
     }
 
-    NormalParagraph parseNormalParagraph() {
+    public NormalParagraph parseNormalParagraph() {
         List<Line> lines = consumeUntil(Line::isEmpty);
         return parseNormalParagraphFromLines(lines);
     }
@@ -246,7 +240,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
     private static List<String> lines2texts(List<Line> lines) {
         return lines.stream()
                 .map(Line::getText)
-                .collect(toList());
+                .collect(Collectors.toList());
     }
 
     private List<Line> consumeParagraphUntil(Predicate<Line> predicate) {

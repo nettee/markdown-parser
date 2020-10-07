@@ -5,7 +5,7 @@ import me.nettee.markdown.dom.Line;
 import me.nettee.markdown.dom.MarkdownElement;
 
 @Getter
-public class MarkdownParseError extends RuntimeException {
+public class MarkdownParseError extends MarkdownParserException {
 
     private final Line line;
     private final Class<? extends MarkdownElement> targetClass;

@@ -21,7 +21,7 @@ public class MarkdownParserParagraphTest {
 
     @Test
     public void constructParser() {
-        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString("");
+        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString("aaa");
         MarkdownDocument document = parser.parseDocument();
     }
 
