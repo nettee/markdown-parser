@@ -1,41 +1,28 @@
 package me.nettee.markdown.parser;
 
-import com.google.common.io.Resources;
-import me.nettee.markdown.model.CodeBlock;
-import me.nettee.markdown.model.Heading;
-import me.nettee.markdown.model.HorizontalRule;
-import me.nettee.markdown.model.Image;
-import me.nettee.markdown.model.ImageParagraph;
-import me.nettee.markdown.model.MarkdownDocument;
-import me.nettee.markdown.model.MathBlock;
-import me.nettee.markdown.model.NormalParagraph;
-import me.nettee.markdown.model.Paragraph;
+import me.nettee.markdown.dom.CodeBlock;
+import me.nettee.markdown.dom.Heading;
+import me.nettee.markdown.dom.HorizontalRule;
+import me.nettee.markdown.dom.Image;
+import me.nettee.markdown.dom.ImageParagraph;
+import me.nettee.markdown.dom.MarkdownDocument;
+import me.nettee.markdown.dom.MathBlock;
+import me.nettee.markdown.dom.NormalParagraph;
+import me.nettee.markdown.dom.Paragraph;
+import me.nettee.markdown.exception.MarkdownParseError;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 
-public class SimpleMarkdownParserTest {
+public class MarkdownParserParagraphTest {
 
     @Test
     public void constructParser() {
-        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString("");
-        MarkdownDocument document = parser.parse();
-    }
-
-    @SuppressWarnings("UnstableApiUsage")
-    @Test
-    public void parseDocument() throws IOException {
-        URL url = Resources.getResource("markdown/markdown-sample.md");
-        String content = Resources.toString(url, StandardCharsets.UTF_8);
-        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString(content);
-        MarkdownDocument document = parser.parse();
-        System.out.println(document.toDebugString());
+        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString("aaa");
+        MarkdownDocument document = parser.parseDocument();
     }
 
     private void testParseParagraph(Paragraph paragraph, Function<SimpleMarkdownParser, Paragraph> f) {
@@ -44,9 +31,20 @@ public class SimpleMarkdownParserTest {
         assertEquals(paragraph, f.apply(parser));
     }
 
+    private void testParseParagraph(String paragraphString, Function<SimpleMarkdownParser, Paragraph> f) {
+        SimpleMarkdownParser parser = SimpleMarkdownParser.fromString(paragraphString);
+        assertEquals(paragraphString, f.apply(parser).toString());
+    }
+
     @Test
     public void parseHeading() {
         Heading heading = new Heading(3, "this is a heading");
+        testParseParagraph(heading, SimpleMarkdownParser::parseHeading);
+    }
+
+    @Test(expected = MarkdownParseError.class)
+    public void parseHeading_notAHeading_error() {
+        String heading = "This is not a heading";
         testParseParagraph(heading, SimpleMarkdownParser::parseHeading);
     }
 

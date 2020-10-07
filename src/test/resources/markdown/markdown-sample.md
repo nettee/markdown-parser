@@ -23,7 +23,7 @@ Enable typographer option to see result.
 
 test.. test... test..... test?..... test!....
 
-// !!!!!! ???? ,,  -- ---
+!!!!!! ???? ,,  -- ---
 
 "Smartypants, double quotes" and 'single quotes'
 

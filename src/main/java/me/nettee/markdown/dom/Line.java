@@ -1,4 +1,4 @@
-package me.nettee.markdown.model;
+package me.nettee.markdown.dom;
 
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
@@ -19,11 +19,16 @@ public class Line {
         return StringUtils.isEmpty(text);
     }
 
+    public boolean isNotEmpty() {
+        return StringUtils.isNotEmpty(text);
+    }
+
     public boolean isHeading() {
         return StringUtils.startsWith(text, "#");
     }
 
     public boolean isHorizontalRule() {
+        // TODO regex
         return StringUtils.equalsAny(text, "---", "***");
     }
 
@@ -39,8 +44,13 @@ public class Line {
         return StringUtils.startsWith(text, "```");
     }
 
-    public boolean isImage() {
+    public boolean seemsLikeImage() {
         return StringUtils.startsWith(text, "!");
+    }
+
+    public boolean seemsLikeTableBorder() {
+        return StringUtils.startsWith(text, "|")
+                && StringUtils.endsWith(text, "|");
     }
 
     public void unindentQuote() {

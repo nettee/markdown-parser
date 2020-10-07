@@ -1,4 +1,4 @@
-package me.nettee.markdown.model;
+package me.nettee.markdown.dom;
 
 import java.util.Collections;
 import java.util.List;
