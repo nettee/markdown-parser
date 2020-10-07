@@ -1,6 +1,5 @@
 package me.nettee.markdown.parser;
 
-import me.nettee.markdown.common.ParserUtils;
 import me.nettee.markdown.dom.CodeBlock;
 import me.nettee.markdown.dom.Heading;
 import me.nettee.markdown.dom.HorizontalRule;
@@ -18,6 +17,9 @@ import me.nettee.markdown.exception.InputDrainedError;
 import me.nettee.markdown.exception.MarkdownParseError;
 import me.nettee.markdown.model.FallBack;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -48,6 +50,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
     private final Line[] lines;
     private int pos;
 
+    private SimpleMarkdownParser(List<String> lines) {
+        int n = lines.size();
+        this.lines = new Line[n];
+        for (int i = 0; i < n; i++) {
+            this.lines[i] = new Line(lines.get(i));
+        }
+        this.pos = 0;
+    }
+
     private SimpleMarkdownParser(String[] lines) {
         int n = lines.length;
         this.lines = new Line[n];
@@ -64,6 +75,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
 
     public static SimpleMarkdownParser fromString(String content) {
         return new SimpleMarkdownParser(content.split("\n"));
+    }
+
+    public static SimpleMarkdownParser fromFile(Path path) {
+        try {
+            List<String> lines = Files.readAllLines(path);
+            return new SimpleMarkdownParser(lines);
+        } catch (IOException e) {
+            throw new InputDrainedError(e);
+        }
     }
 
     public MarkdownDocument parseDocument() {
