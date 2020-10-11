@@ -15,13 +15,13 @@ import me.nettee.markdown.dom.Quote;
 import me.nettee.markdown.dom.Table;
 import me.nettee.markdown.exception.InputDrainedException;
 import me.nettee.markdown.exception.ParseMarkdownFailedAtLineException;
-import me.nettee.markdown.model.FallBack;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -121,13 +121,23 @@ public class SimpleMarkdownParser implements MarkdownParser {
             return parseCodeBlock();
         } else if (line.isMathBlockBorder()) {
             return parseMathBlock();
-        } else if (line.seemsLikeImage()) {
-            return tryParseImageParagraph().nullSafeGet();
-        } else if (line.seemsLikeTableBorder()) {
-            return tryParseTable().nullSafeGet();
-        } else {
-            return parseNormalParagraph();
         }
+
+        if (line.seemsLikeImage()) {
+            Optional<ImageParagraph> imageParagraph = tryParseImageParagraph();
+            if (imageParagraph.isPresent()) {
+                return imageParagraph.get();
+            }
+        }
+
+        if (line.seemsLikeTableBorder()) {
+            Optional<Table> table = tryParseTable();
+            if (table.isPresent()) {
+                return table.get();
+            }
+        }
+
+        return parseNormalParagraph();
     }
 
     public Heading parseHeading() {
@@ -188,20 +198,20 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new MathBlock(lines2texts(lines));
     }
 
-    private FallBack<Paragraph, ImageParagraph, NormalParagraph> tryParseImageParagraph() {
+    private Optional<ImageParagraph> tryParseImageParagraph() {
         List<Line> lines = consumeUntil(Line::isEmpty);
-        // 首先尝试 parse 成图片
+
         if (lines.size() == 1) {
             try {
                 Image image = tryParseImageFromLine(lines.get(0));
-                return FallBack.primary(new ImageParagraph(image));
+                ImageParagraph imageParagraph = new ImageParagraph(image);
+                return Optional.of(imageParagraph);
             } catch (ParseElementFailException e) {
                 // do nothing
             }
         }
-        // 如果 parse 失败则作为普通段落处理
-        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
-        return FallBack.secondary(normalParagraph);
+
+        return Optional.empty();
     }
 
     public ImageParagraph parseImageParagraph() {
@@ -226,19 +236,18 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new Image(caption, uri);
     }
 
-    private FallBack<Paragraph, Table, NormalParagraph> tryParseTable() {
+    private Optional<Table> tryParseTable() {
         checkLineState(nextLine(), Line::seemsLikeTableBorder, Table.class);
         List<Line> lines = consumeUntil(Line::isEmpty);
-        // 首先尝试 parse 成表格
+
         try {
             Table table = tryParseTableFromLines(lines);
-            return FallBack.primary(table);
+            return Optional.of(table);
         } catch (ParseElementFailException e) {
             // do nothing
         }
-        // 如果 parse 失败则作为普通段落处理
-        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
-        return FallBack.secondary(normalParagraph);
+
+        return Optional.empty();
     }
 
     private static Table tryParseTableFromLines(List<Line> lines) throws ParseElementFailException {
