@@ -6,6 +6,7 @@ import me.nettee.markdown.dom.HorizontalRule;
 import me.nettee.markdown.dom.Image;
 import me.nettee.markdown.dom.ImageParagraph;
 import me.nettee.markdown.dom.Line;
+import me.nettee.markdown.dom.ListItem;
 import me.nettee.markdown.dom.MarkdownDocument;
 import me.nettee.markdown.dom.MarkdownElement;
 import me.nettee.markdown.dom.MathBlock;
@@ -13,6 +14,7 @@ import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
 import me.nettee.markdown.dom.Quote;
 import me.nettee.markdown.dom.Table;
+import me.nettee.markdown.dom.UnorderedList;
 import me.nettee.markdown.exception.InputDrainedException;
 import me.nettee.markdown.exception.ParseMarkdownFailedAtLineException;
 
@@ -137,6 +139,13 @@ public class SimpleMarkdownParser implements MarkdownParser {
             }
         }
 
+        if (line.seemsLikeUnorderedList()) {
+            Optional<UnorderedList> unorderedList = tryParseUnorderedList();
+            if (unorderedList.isPresent()) {
+                return unorderedList.get();
+            }
+        }
+
         return parseNormalParagraph();
     }
 
@@ -253,6 +262,39 @@ public class SimpleMarkdownParser implements MarkdownParser {
     private static Table tryParseTableFromLines(List<Line> lines) throws ParseElementFailException {
         // TODO
         throw new ParseElementFailException(lines.get(0), Table.class);
+    }
+
+    private Optional<UnorderedList> tryParseUnorderedList() {
+        List<Line> lines = consumeUntil(Line::isEmpty);
+        Pattern pattern = Pattern.compile("^[-+*]\\s+(.+)");
+        boolean isUnorderedListLines = lines.stream()
+                .allMatch(line -> pattern.matcher(line.getText()).matches());
+        if (!isUnorderedListLines) {
+            return Optional.empty();
+        }
+
+        try {
+            UnorderedList unorderedList = tryParseUnorderedListFromLines(lines);
+            return Optional.of(unorderedList);
+        } catch (ParseElementFailException e) {
+            // do nothing
+        }
+
+        return Optional.empty();
+    }
+
+    private static UnorderedList tryParseUnorderedListFromLines(List<Line> lines) throws ParseElementFailException {
+        Pattern pattern = Pattern.compile("^[-+*]\\s+(.+)");
+        List<ListItem> listItemList = lines.stream()
+                .map(line -> {
+                    Matcher matcher = pattern.matcher(line.getText());
+                    boolean found = matcher.find();
+                    checkParserState2(found, new ParseMarkdownFailedAtLineException(line, ListItem.class));
+                    return matcher.group(1);
+                })
+                .map(ListItem::new)
+                .collect(Collectors.toList());
+        return new UnorderedList(listItemList);
     }
 
     public NormalParagraph parseNormalParagraph() {

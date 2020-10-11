@@ -53,6 +53,10 @@ public class Line {
                 && StringUtils.endsWith(text, "|");
     }
 
+    public boolean seemsLikeUnorderedList() {
+        return StringUtils.startsWithAny(text, "+ ", "- ", "* ");
+    }
+
     public void unindentQuote() {
         if (StringUtils.isEmpty(text)) {
             return;
