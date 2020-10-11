@@ -101,14 +101,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
     public List<Paragraph> parseParagraphs() {
         List<Paragraph> paragraphs = new ArrayList<>();
         while (isNotEof()) {
-            paragraphs.add(parseParagraph());
+            consumeWhile(Line::isEmpty);
+            if (isNotEof()) {
+                paragraphs.add(parseParagraph());
+            }
         }
         return paragraphs;
     }
 
     public Paragraph parseParagraph() {
-        consumeWhile(Line::isEmpty);
-        checkParserState(isNotEof(), new InputDrainedError());
         Line line = nextLine();
         if (line.isHeading()) {
             return parseHeading();
