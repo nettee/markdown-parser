@@ -17,13 +17,13 @@ import me.nettee.markdown.dom.Table;
 import me.nettee.markdown.dom.UnorderedList;
 import me.nettee.markdown.exception.InputDrainedException;
 import me.nettee.markdown.exception.ParseMarkdownFailedAtLineException;
+import me.nettee.markdown.model.FallBack;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -123,30 +123,15 @@ public class SimpleMarkdownParser implements MarkdownParser {
             return parseCodeBlock();
         } else if (line.isMathBlockBorder()) {
             return parseMathBlock();
+        } else if (line.seemsLikeImage()) {
+            return tryParseImageParagraph().nullSafeGet();
+        } else if (line.seemsLikeTableBorder()) {
+            return tryParseTable().nullSafeGet();
+        } else if (line.seemsLikeUnorderedList()) {
+            return tryParseUnorderedList().nullSafeGet();
+        } else {
+            return parseNormalParagraph();
         }
-
-        if (line.seemsLikeImage()) {
-            Optional<ImageParagraph> imageParagraph = tryParseImageParagraph();
-            if (imageParagraph.isPresent()) {
-                return imageParagraph.get();
-            }
-        }
-
-        if (line.seemsLikeTableBorder()) {
-            Optional<Table> table = tryParseTable();
-            if (table.isPresent()) {
-                return table.get();
-            }
-        }
-
-        if (line.seemsLikeUnorderedList()) {
-            Optional<UnorderedList> unorderedList = tryParseUnorderedList();
-            if (unorderedList.isPresent()) {
-                return unorderedList.get();
-            }
-        }
-
-        return parseNormalParagraph();
     }
 
     public Heading parseHeading() {
@@ -207,20 +192,21 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new MathBlock(lines2texts(lines));
     }
 
-    private Optional<ImageParagraph> tryParseImageParagraph() {
+    private FallBack<Paragraph, ImageParagraph, NormalParagraph> tryParseImageParagraph() {
         List<Line> lines = consumeUntil(Line::isEmpty);
-
+        // 首先尝试 parse 成图片段落
         if (lines.size() == 1) {
             try {
                 Image image = tryParseImageFromLine(lines.get(0));
                 ImageParagraph imageParagraph = new ImageParagraph(image);
-                return Optional.of(imageParagraph);
+                return FallBack.primary(imageParagraph);
             } catch (ParseElementFailException e) {
                 // do nothing
             }
         }
-
-        return Optional.empty();
+        // 如果 parse 失败则作为普通段落处理
+        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
+        return FallBack.secondary(normalParagraph);
     }
 
     public ImageParagraph parseImageParagraph() {
@@ -245,18 +231,19 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new Image(caption, uri);
     }
 
-    private Optional<Table> tryParseTable() {
+    private FallBack<Paragraph, Table, NormalParagraph> tryParseTable() {
         checkLineState(nextLine(), Line::seemsLikeTableBorder, Table.class);
         List<Line> lines = consumeUntil(Line::isEmpty);
-
+        // 首先尝试 parse 成表格
         try {
             Table table = tryParseTableFromLines(lines);
-            return Optional.of(table);
+            return FallBack.primary(table);
         } catch (ParseElementFailException e) {
             // do nothing
         }
-
-        return Optional.empty();
+        // 如果 parse 失败则作为普通段落处理
+        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
+        return FallBack.secondary(normalParagraph);
     }
 
     private static Table tryParseTableFromLines(List<Line> lines) throws ParseElementFailException {
@@ -264,23 +251,24 @@ public class SimpleMarkdownParser implements MarkdownParser {
         throw new ParseElementFailException(lines.get(0), Table.class);
     }
 
-    private Optional<UnorderedList> tryParseUnorderedList() {
+    private FallBack<Paragraph, UnorderedList, NormalParagraph> tryParseUnorderedList() {
         List<Line> lines = consumeUntil(Line::isEmpty);
+        // 首先尝试 parse 成无序列表
         Pattern pattern = Pattern.compile("^[-+*]\\s+(.+)");
         boolean isUnorderedListLines = lines.stream()
                 .allMatch(line -> pattern.matcher(line.getText()).matches());
-        if (!isUnorderedListLines) {
-            return Optional.empty();
+        if (isUnorderedListLines) {
+            try {
+                UnorderedList unorderedList = tryParseUnorderedListFromLines(lines);
+                return FallBack.primary(unorderedList);
+            } catch (ParseElementFailException e) {
+                // do nothing
+            }
         }
 
-        try {
-            UnorderedList unorderedList = tryParseUnorderedListFromLines(lines);
-            return Optional.of(unorderedList);
-        } catch (ParseElementFailException e) {
-            // do nothing
-        }
-
-        return Optional.empty();
+        // 如果 parse 失败则作为普通段落处理
+        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
+        return FallBack.secondary(normalParagraph);
     }
 
     private static UnorderedList tryParseUnorderedListFromLines(List<Line> lines) throws ParseElementFailException {
