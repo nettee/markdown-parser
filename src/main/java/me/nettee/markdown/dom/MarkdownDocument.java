@@ -57,7 +57,7 @@ public class MarkdownDocument {
         for (int i = 0; i < body.size(); i++) {
             Paragraph paragraph = body.get(i);
             out.println();
-            out.printf("Paragraph[%d] (%s):\n", i, paragraph.getClass().getSimpleName());
+            out.printf("[%d] %s:\n", i, paragraph.getClass().getSimpleName());
             out.println(paragraph.toString());
         }
         return baos.toString(utf8);
