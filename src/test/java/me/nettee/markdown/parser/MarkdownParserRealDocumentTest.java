@@ -18,6 +18,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -45,6 +46,9 @@ public class MarkdownParserRealDocumentTest {
     @Parameters(name = "{0}")
     public static Collection<Object[]> data() throws IOException {
         Path rootPath = Paths.get("/Users/william/bloomstore/LeetCode 例题精讲");
+        if (Files.notExists(rootPath)) {
+            return Collections.emptyList();
+        }
         MarkdownFileVisitor visitor = new MarkdownFileVisitor();
         Files.walkFileTree(rootPath, visitor);
         List<Path> markdownFiles = visitor.getMarkdownFiles();
