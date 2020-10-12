@@ -1,12 +1,12 @@
 package me.nettee.markdown.parser;
 
-import me.nettee.markdown.common.ParserUtils;
 import me.nettee.markdown.dom.CodeBlock;
 import me.nettee.markdown.dom.Heading;
 import me.nettee.markdown.dom.HorizontalRule;
 import me.nettee.markdown.dom.Image;
 import me.nettee.markdown.dom.ImageParagraph;
 import me.nettee.markdown.dom.Line;
+import me.nettee.markdown.dom.ListItem;
 import me.nettee.markdown.dom.MarkdownDocument;
 import me.nettee.markdown.dom.MarkdownElement;
 import me.nettee.markdown.dom.MathBlock;
@@ -14,10 +14,14 @@ import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
 import me.nettee.markdown.dom.Quote;
 import me.nettee.markdown.dom.Table;
-import me.nettee.markdown.exception.InputDrainedError;
-import me.nettee.markdown.exception.MarkdownParseError;
+import me.nettee.markdown.dom.UnorderedList;
+import me.nettee.markdown.exception.InputDrainedException;
+import me.nettee.markdown.exception.ParseMarkdownFailedAtLineException;
 import me.nettee.markdown.model.FallBack;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -25,8 +29,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkState;
-import static me.nettee.markdown.common.ParserUtils.checkParserState;
+import static me.nettee.markdown.common.ParserUtils.checkLineState;
+import static me.nettee.markdown.common.ParserUtils.checkParserState2;
 
 public class SimpleMarkdownParser implements MarkdownParser {
 
@@ -40,13 +44,22 @@ public class SimpleMarkdownParser implements MarkdownParser {
             this.targetClass = targetClass;
         }
 
-        public MarkdownParseError toMarkdownParseError() {
-            return new MarkdownParseError(line, targetClass);
+        public ParseMarkdownFailedAtLineException toMarkdownParseError() {
+            return new ParseMarkdownFailedAtLineException(line, targetClass);
         }
     }
 
     private final Line[] lines;
     private int pos;
+
+    private SimpleMarkdownParser(List<String> lines) {
+        int n = lines.size();
+        this.lines = new Line[n];
+        for (int i = 0; i < n; i++) {
+            this.lines[i] = new Line(lines.get(i));
+        }
+        this.pos = 0;
+    }
 
     private SimpleMarkdownParser(String[] lines) {
         int n = lines.length;
@@ -66,29 +79,39 @@ public class SimpleMarkdownParser implements MarkdownParser {
         return new SimpleMarkdownParser(content.split("\n"));
     }
 
+    public static SimpleMarkdownParser fromFile(Path path) {
+        try {
+            List<String> lines = Files.readAllLines(path);
+            return new SimpleMarkdownParser(lines);
+        } catch (IOException e) {
+            throw new InputDrainedException(e);
+        }
+    }
+
     public MarkdownDocument parseDocument() {
         List<Paragraph> paragraphs = parseParagraphs();
         if (paragraphs.size() > 0 && paragraphs.get(0) instanceof Heading) {
             Heading heading = (Heading) paragraphs.get(0);
-            checkState(heading.getLevel() == 1);
-            String title = heading.getText();
-            return new MarkdownDocument(title, paragraphs.subList(1, paragraphs.size()));
-        } else {
-            return new MarkdownDocument(paragraphs);
+            if (heading.getLevel() == 1) {
+                String title = heading.getText();
+                return new MarkdownDocument(title, paragraphs.subList(1, paragraphs.size()));
+            }
         }
+        return new MarkdownDocument(paragraphs);
     }
 
     public List<Paragraph> parseParagraphs() {
         List<Paragraph> paragraphs = new ArrayList<>();
         while (isNotEof()) {
-            paragraphs.add(parseParagraph());
+            consumeWhile(Line::isEmpty);
+            if (isNotEof()) {
+                paragraphs.add(parseParagraph());
+            }
         }
         return paragraphs;
     }
 
     public Paragraph parseParagraph() {
-        consumeWhile(Line::isEmpty);
-        checkParserState(isNotEof(), new InputDrainedError());
         Line line = nextLine();
         if (line.isHeading()) {
             return parseHeading();
@@ -104,15 +127,16 @@ public class SimpleMarkdownParser implements MarkdownParser {
             return tryParseImageParagraph().nullSafeGet();
         } else if (line.seemsLikeTableBorder()) {
             return tryParseTable().nullSafeGet();
+        } else if (line.seemsLikeUnorderedList()) {
+            return tryParseUnorderedList().nullSafeGet();
         } else {
             return parseNormalParagraph();
         }
     }
 
     public Heading parseHeading() {
-        Line line = nextLine();
-        checkParserState(line.isHeading(), new MarkdownParseError(line, Heading.class));
-        consumeLine();
+        checkLineState(nextLine(), Line::isHeading, Heading.class);
+        Line line = consumeLine();
         return parseHeadingFromLine(line);
     }
 
@@ -120,15 +144,14 @@ public class SimpleMarkdownParser implements MarkdownParser {
         Pattern pattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
         Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
-        checkParserState(found, new MarkdownParseError(line, Heading.class));
+        checkParserState2(found, new ParseMarkdownFailedAtLineException(line, Heading.class));
         int level = matcher.group(1).length();
         String text = matcher.group(2);
         return new Heading(level, text);
     }
 
     public HorizontalRule parseHorizontalRule() {
-        Line line = nextLine();
-        checkParserState(line.isHorizontalRule(), new MarkdownParseError(line, HorizontalRule.class));
+        checkLineState(nextLine(), Line::isHorizontalRule, HorizontalRule.class);
         consumeLine();
         return new HorizontalRule();
     }
@@ -155,13 +178,12 @@ public class SimpleMarkdownParser implements MarkdownParser {
         Pattern pattern = Pattern.compile("```(\\S*)");
         Matcher matcher = pattern.matcher(line.getText());
         boolean found = matcher.find();
-        checkParserState(found, new MarkdownParseError(line, CodeBlock.class));
+        checkParserState2(found, new ParseMarkdownFailedAtLineException(line, CodeBlock.class));
         return matcher.group(1);
     }
 
     public MathBlock parseMathBlock() {
-        Line line = nextLine();
-        checkParserState(line.isMathBlockBorder(), new MarkdownParseError(line, MathBlock.class));
+        checkLineState(nextLine(), Line::isMathBlockBorder, MathBlock.class);
         consumeLine();
         List<Line> lines = consumeParagraphUntil(Line::isMathBlockBorder);
         if (nextLine().isMathBlockBorder()) {
@@ -172,11 +194,12 @@ public class SimpleMarkdownParser implements MarkdownParser {
 
     private FallBack<Paragraph, ImageParagraph, NormalParagraph> tryParseImageParagraph() {
         List<Line> lines = consumeUntil(Line::isEmpty);
-        // 首先尝试 parse 成图片
+        // 首先尝试 parse 成图片段落
         if (lines.size() == 1) {
             try {
                 Image image = tryParseImageFromLine(lines.get(0));
-                return FallBack.primary(new ImageParagraph(image));
+                ImageParagraph imageParagraph = new ImageParagraph(image);
+                return FallBack.primary(imageParagraph);
             } catch (ParseElementFailException e) {
                 // do nothing
             }
@@ -209,7 +232,7 @@ public class SimpleMarkdownParser implements MarkdownParser {
     }
 
     private FallBack<Paragraph, Table, NormalParagraph> tryParseTable() {
-        checkState(nextLine().seemsLikeTableBorder());
+        checkLineState(nextLine(), Line::seemsLikeTableBorder, Table.class);
         List<Line> lines = consumeUntil(Line::isEmpty);
         // 首先尝试 parse 成表格
         try {
@@ -226,6 +249,40 @@ public class SimpleMarkdownParser implements MarkdownParser {
     private static Table tryParseTableFromLines(List<Line> lines) throws ParseElementFailException {
         // TODO
         throw new ParseElementFailException(lines.get(0), Table.class);
+    }
+
+    private FallBack<Paragraph, UnorderedList, NormalParagraph> tryParseUnorderedList() {
+        List<Line> lines = consumeUntil(Line::isEmpty);
+        // 首先尝试 parse 成无序列表
+        Pattern pattern = Pattern.compile("^[-+*]\\s+(.+)");
+        boolean isUnorderedListLines = lines.stream()
+                .allMatch(line -> pattern.matcher(line.getText()).matches());
+        if (isUnorderedListLines) {
+            try {
+                UnorderedList unorderedList = tryParseUnorderedListFromLines(lines);
+                return FallBack.primary(unorderedList);
+            } catch (ParseElementFailException e) {
+                // do nothing
+            }
+        }
+
+        // 如果 parse 失败则作为普通段落处理
+        NormalParagraph normalParagraph = parseNormalParagraphFromLines(lines);
+        return FallBack.secondary(normalParagraph);
+    }
+
+    private static UnorderedList tryParseUnorderedListFromLines(List<Line> lines) throws ParseElementFailException {
+        Pattern pattern = Pattern.compile("^[-+*]\\s+(.+)");
+        List<ListItem> listItemList = lines.stream()
+                .map(line -> {
+                    Matcher matcher = pattern.matcher(line.getText());
+                    boolean found = matcher.find();
+                    checkParserState2(found, new ParseMarkdownFailedAtLineException(line, ListItem.class));
+                    return matcher.group(1);
+                })
+                .map(ListItem::new)
+                .collect(Collectors.toList());
+        return new UnorderedList(listItemList);
     }
 
     public NormalParagraph parseNormalParagraph() {

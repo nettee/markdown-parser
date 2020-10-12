@@ -9,7 +9,7 @@ import me.nettee.markdown.dom.MarkdownDocument;
 import me.nettee.markdown.dom.MathBlock;
 import me.nettee.markdown.dom.NormalParagraph;
 import me.nettee.markdown.dom.Paragraph;
-import me.nettee.markdown.exception.MarkdownParseError;
+import me.nettee.markdown.exception.ParseMarkdownFailedAtLineException;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ public class MarkdownParserParagraphTest {
         testParseParagraph(heading, SimpleMarkdownParser::parseHeading);
     }
 
-    @Test(expected = MarkdownParseError.class)
+    @Test(expected = ParseMarkdownFailedAtLineException.class)
     public void parseHeading_notAHeading_error() {
         String heading = "This is not a heading";
         testParseParagraph(heading, SimpleMarkdownParser::parseHeading);
